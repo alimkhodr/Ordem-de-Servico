@@ -9,7 +9,7 @@ Aplicação para facilitar a produção de peças da área da ferramentaria da e
 
 <details>
 <summary><b>Telas</b></summary>
-Screenshot das telas do sitema.
+Screenshot das telas do sitema.<br>
   <details>
     <summary><b>Login</b></summary>
     <ul><p align="center"><img src="https://github.com/alimkhodr/Ordem-de-Servico/assets/85517447/214f7228-2b6c-4c9b-a42c-b36ec35dc68e"></img></p></ul>
@@ -19,9 +19,9 @@ Screenshot das telas do sitema.
     <ul><p align="center"><img src="https://github.com/alimkhodr/Ordem-de-Servico/assets/85517447/902ea023-9183-4f79-af4f-281a7fbbfe95"></img></p></ul>
   </details>
     <details>
-    <summary><b>Ordem</b></summary>
-      Editar/Criar ordem de produção e adicionar operações a ela
+    <summary><b>Ordem</b></summary>    
     <ul><p align="center"><img src="https://github.com/alimkhodr/Ordem-de-Servico/assets/85517447/03638a8d-45fa-4863-9ccf-715c45e15e9b"></img></p></ul>
+    Editar/Criar ordem de produção e adicionar operações a ela
   </details>
   <details>
     <summary><b>Apontar serviço</b></summary>
