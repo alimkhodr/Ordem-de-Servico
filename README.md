@@ -4,7 +4,7 @@ Aplicação para facilitar a produção de peças da área da ferramentaria da e
 
 <details>
   <summary><b>Query do SQL</b></summary>
-    <ul><p align="center"><img src="https://github.com/alimkhodr/Ordem-de-Servico/assets/85517447/32ebff7f-6ac4-477a-9345-20aaa959d40d"></img></p></ul>
+    <ul><p align="center"><img src="https://github.com/alimkhodr/Ordem-de-Servico/assets/85517447/047d0a61-4e40-4c40-b21c-77f849f786c9"></img></p></ul>
 </details>
 
 <details>
