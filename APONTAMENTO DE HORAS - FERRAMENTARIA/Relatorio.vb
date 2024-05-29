@@ -1,7 +1,8 @@
-﻿Imports System.IO
+Imports System.IO
 Imports System.Runtime.InteropServices
 Imports Microsoft.Office.Interop
 Imports Microsoft.ReportingServices.Rendering.ExcelRenderer
+Imports OfficeOpenXml
 
 Public Class Relatorio
 
@@ -41,21 +42,25 @@ Public Class Relatorio
         desconectar()
     End Sub
     Sub Consulta()
-        Dim deferenca_horas As Decimal = 0
-        Dim horastotais As Decimal = 0
         Try
             conectar()
-            comandoSQL.CommandText = "SELECT OS_ID, OS_FERRAMENTA, OS_POSICAO, OS_SECAO, OS_PROJETO, OS_CONTA, OS_SUB_CONTA, OS_REG_RESPONSAVEL, OS_TIPO, OS_DATA_INICIO, OS_QUANTIDADE, "
-            comandoSQL.CommandText &= "OS_QUANTIDADE_FINAL, OP_ID, OP_NOME_OP, OP_FUNCIONARIO, OP_DATA_INICIO, OP_DATA_FIM, OP_MAQUINA, OP_HORAS_PREV, OP_QUANTIDADE, OP_QUANTIDADE_FINAL,"
-            comandoSQL.CommandText &= "DATEDIFF(MINUTE, OP_DATA_INICIO, COALESCE(OP_DATA_FIM, GETDATE())) / 60.0 As HORAS_GERADAS, "
-            comandoSQL.CommandText &= "(SELECT COALESCE(SUM(DATEDIFF(MINUTE, PARADA_DATA_INICIO, COALESCE(PARADA_DATA_FIM, GETDATE()))), 0) / 60.0 FROM TAB_OP_PARADAS WHERE PARADA_ID_OP = OP_ID) As SOMA_PARADA "
-            comandoSQL.CommandText &= "FROM TAB_OS_RELATORIO INNER JOIN TAB_OS_OPERACAO On OS_ID = OP_ID_OS "
-            comandoSQL.CommandText &= "WHERE OP_DATA_INICIO Is Not NULL And ('" & txt_fer.Text & "' = '' OR OS_FERRAMENTA LIKE '%" & txt_fer.Text & "%' OR OS_POSICAO LIKE '%" & txt_fer.Text & "%') AND ('" & txt_os.Text & "' = '' OR OS_ID = '" & txt_os.Text & "') "
-            comandoSQL.CommandText &= "AND ('" & txt_data.Text & "' = '  /  /' OR CONVERT(DATE, OP_DATA_INICIO, 103) >= CONVERT(DATE, '" & txt_data.Text & "', 103)) AND ('" & txt_data_fim.Text & "' = '  /  /' OR CONVERT(DATE, OP_DATA_FIM, 103) <= CONVERT(DATE, '" & txt_data_fim.Text & "', 103)) "
-            comandoSQL.CommandText &= "AND ('" & txt_op.Text & "' = '' OR OP_NOME_OP = '" & txt_op.Text & "')  AND ('" & cbo_maq.Text & "' = '' OR OP_MAQUINA = '" & cbo_maq.Text & "') "
-            comandoSQL.CommandText &= "GROUP BY OS_ID, OS_FERRAMENTA, OS_SECAO, OS_PROJETO, OS_CONTA, OS_SUB_CONTA, OS_REG_RESPONSAVEL, OS_TIPO, OS_DATA_INICIO, OS_QUANTIDADE, "
-            comandoSQL.CommandText &= "OS_QUANTIDADE_FINAL, OP_ID, OP_NOME_OP, OP_FUNCIONARIO, OP_DATA_INICIO, OP_DATA_FIM, OP_MAQUINA, "
-            comandoSQL.CommandText &= "OP_QUANTIDADE, OP_QUANTIDADE_FINAL, OP_HORAS_PREV, OS_POSICAO ORDER BY OP_ID"
+            comandoSQL.CommandText = "WITH ParadasNumeradas AS ( "
+            comandoSQL.CommandText &= "SELECT  o.OP_ID, o.OP_NOME_OP, o.OP_FUNCIONARIO, o.OP_DATA_INICIO, o.OP_DATA_FIM, o.OP_MAQUINA, o.OP_HORAS_PREV, o.OP_QUANTIDADE, o.OP_QUANTIDADE_FINAL, p1.PARADA_DATA_INICIO, p1.PARADA_DATA_FIM, "
+            comandoSQL.CommandText &= "(SELECT COUNT(*) FROM TAB_OP_PARADAS p2 WHERE p2.PARADA_ID_OP = p1.PARADA_ID_OP AND p2.PARADA_DATA_INICIO < p1.PARADA_DATA_INICIO) + 1 AS RN "
+            comandoSQL.CommandText &= "FROM TAB_OS_OPERACAO o LEFT JOIN TAB_OP_PARADAS p1 ON p1.PARADA_ID_OP = o.OP_ID), "
+            comandoSQL.CommandText &= "Intervalos AS (SELECT t1.OP_ID, t1.OP_NOME_OP, t1.OP_FUNCIONARIO, t1.OP_DATA_INICIO, t1.OP_DATA_FIM, t1.OP_MAQUINA, "
+            comandoSQL.CommandText &= "t1.OP_HORAS_PREV, t1.OP_QUANTIDADE, t1.OP_QUANTIDADE_FINAL, COALESCE(t2.PARADA_DATA_FIM, t1.OP_DATA_INICIO) AS INICIO,COALESCE(t1.PARADA_DATA_INICIO, t1.OP_DATA_FIM) AS FIM "
+            comandoSQL.CommandText &= "FROM ParadasNumeradas t1 LEFT JOIN ParadasNumeradas t2 ON t1.OP_ID = t2.OP_ID AND t1.RN = t2.RN + 1) "
+            comandoSQL.CommandText &= "SELECT r.OS_ID, r.OS_FERRAMENTA, r.OS_POSICAO, r.OS_SECAO, r.OS_PROJETO, r.OS_CONTA, r.OS_SUB_CONTA, r.OS_REG_RESPONSAVEL, r.OS_TIPO, r.OS_DATA_INICIO, r.OS_QUANTIDADE, r.OS_QUANTIDADE_FINAL, r.OS_DATA_FIM,"
+            comandoSQL.CommandText &= "i.OP_ID, i.OP_NOME_OP, i.OP_FUNCIONARIO, i.OP_DATA_INICIO, i.OP_DATA_FIM, i.OP_MAQUINA, i.OP_HORAS_PREV, i.OP_QUANTIDADE, i.OP_QUANTIDADE_FINAL, i.INICIO, i.FIM, DATEDIFF(MINUTE, i.INICIO, i.FIM) / 60.0 AS TEMPO "
+            comandoSQL.CommandText &= "FROM Intervalos i INNER JOIN TAB_OS_OPERACAO o ON i.OP_ID = o.OP_ID INNER JOIN TAB_OS_RELATORIO r ON o.OP_ID_OS = r.OS_ID "
+            comandoSQL.CommandText &= "WHERE i.OP_DATA_INICIO IS NOT NULL "
+            comandoSQL.CommandText &= "AND ('" & txt_fer.Text & "' = '' OR r.OS_FERRAMENTA LIKE '%" & txt_fer.Text & "%' OR r.OS_POSICAO LIKE '%" & txt_fer.Text & "%') "
+            comandoSQL.CommandText &= "AND ('" & txt_data.Text & "' = '  /  /' OR CONVERT(DATE, i.INICIO, 103) >= CONVERT(DATE, '" & txt_data.Text & "', 103)) "
+            comandoSQL.CommandText &= "AND ('" & txt_data_fim.Text & "' = '  /  /' OR CONVERT(DATE, i.FIM, 103) <= CONVERT(DATE, '" & txt_data_fim.Text & "', 103)) "
+            comandoSQL.CommandText &= "AND ('" & txt_op.Text & "' = '' OR i.OP_NOME_OP = '" & txt_op.Text & "')  AND ('" & cbo_maq.Text & "' = '' OR i.OP_MAQUINA = '" & cbo_maq.Text & "') "
+            comandoSQL.CommandText &= "AND ('" & txt_os.Text & "' = '' OR r.OS_ID = '" & txt_os.Text & "') "
+            comandoSQL.CommandText &= "ORDER BY r.OS_ID, i.OP_ID;"
             objDataReader = comandoSQL.ExecuteReader
 
             Lista_OS.Clear()
@@ -67,26 +72,26 @@ Public Class Relatorio
             Lista_OS.Columns.Add("SEÇÃO", 60, HorizontalAlignment.Center)
             Lista_OS.Columns.Add("CONTA", 60, HorizontalAlignment.Center)
             Lista_OS.Columns.Add("SUB_CONTA", 60, HorizontalAlignment.Center)
-            Lista_OS.Columns.Add("REG_RESPONSAVEL", 60, HorizontalAlignment.Center)
+            Lista_OS.Columns.Add("RESPONSÁVEL", 60, HorizontalAlignment.Center)
             Lista_OS.Columns.Add("TIPO", 60, HorizontalAlignment.Center)
-            Lista_OS.Columns.Add("DATA INICIO", 60, HorizontalAlignment.Center)
             Lista_OS.Columns.Add("QUANTIDADE", 60, HorizontalAlignment.Center)
             Lista_OS.Columns.Add("QUANTIDADE FINAL", 60, HorizontalAlignment.Center)
+            Lista_OS.Columns.Add("INÍCIO/ORDEM", 60, HorizontalAlignment.Center)
+            Lista_OS.Columns.Add("FIM/ORDEM", 60, HorizontalAlignment.Center)
             Lista_OS.Columns.Add("OPERAÇÃO", 60, HorizontalAlignment.Center)
             Lista_OS.Columns.Add("NOME", 60, HorizontalAlignment.Center)
             Lista_OS.Columns.Add("FUNCIONÁRIO", 60, HorizontalAlignment.Center)
-            Lista_OS.Columns.Add("DATA INICIO", 60, HorizontalAlignment.Center)
-            Lista_OS.Columns.Add("DATA FIM", 60, HorizontalAlignment.Center)
             Lista_OS.Columns.Add("MAQUINA", 60, HorizontalAlignment.Center)
+            Lista_OS.Columns.Add("INÍCIO/OPERAÇÃO", 60, HorizontalAlignment.Center)
+            Lista_OS.Columns.Add("FIM/OPERAÇÃO", 60, HorizontalAlignment.Center)
+            Lista_OS.Columns.Add("HORAS PROGRAMADAS", 60, HorizontalAlignment.Center)
             Lista_OS.Columns.Add("QUANTIDADE", 60, HorizontalAlignment.Center)
             Lista_OS.Columns.Add("QUANTIDADE FINAL", 60, HorizontalAlignment.Center)
-            Lista_OS.Columns.Add("HORAS PROGRAMADAS", 60, HorizontalAlignment.Center)
+            Lista_OS.Columns.Add("INÍCIO/APONTAMENTO", 60, HorizontalAlignment.Center)
+            Lista_OS.Columns.Add("FIM/APONTAMENTO", 60, HorizontalAlignment.Center)
             Lista_OS.Columns.Add("HORAS REAIS", 60, HorizontalAlignment.Center)
 
             While objDataReader.Read()
-                Dim horas_geradas As Decimal = If(objDataReader("HORAS_GERADAS") IsNot DBNull.Value, Convert.ToDecimal(objDataReader("HORAS_GERADAS")), 0)
-                Dim horas_parada As Decimal = If(objDataReader("SOMA_PARADA") IsNot DBNull.Value, Convert.ToDecimal(objDataReader("SOMA_PARADA")), 0)
-                deferenca_horas = Math.Round(horas_geradas - horas_parada, 2)
                 Dim ls As New ListViewItem(objDataReader("OS_ID").ToString())
                 ls.SubItems.Add(objDataReader("OS_FERRAMENTA").ToString())
                 ls.SubItems.Add(objDataReader("OS_POSICAO").ToString())
@@ -96,60 +101,23 @@ Public Class Relatorio
                 ls.SubItems.Add(objDataReader("OS_SUB_CONTA").ToString())
                 ls.SubItems.Add(objDataReader("OS_REG_RESPONSAVEL").ToString())
                 ls.SubItems.Add(objDataReader("OS_TIPO").ToString())
-                ls.SubItems.Add(objDataReader("OS_DATA_INICIO").ToString())
                 ls.SubItems.Add(objDataReader("OS_QUANTIDADE").ToString())
                 ls.SubItems.Add(objDataReader("OS_QUANTIDADE_FINAL").ToString())
+                ls.SubItems.Add(If(objDataReader("OS_DATA_INICIO") IsNot DBNull.Value, Convert.ToDateTime(objDataReader("OS_DATA_INICIO")).ToString("dd/MM/yyyy HH:mm"), Nothing))
+                ls.SubItems.Add(If(objDataReader("OS_DATA_FIM") IsNot DBNull.Value, Convert.ToDateTime(objDataReader("OS_DATA_FIM")).ToString("dd/MM/yyyy HH:mm"), Nothing))
                 ls.SubItems.Add(objDataReader("OP_ID").ToString())
                 ls.SubItems.Add(objDataReader("OP_NOME_OP").ToString())
                 ls.SubItems.Add(objDataReader("OP_FUNCIONARIO").ToString())
-                ls.SubItems.Add(objDataReader("OP_DATA_INICIO").ToString())
-                ls.SubItems.Add(objDataReader("OP_DATA_FIM").ToString())
                 ls.SubItems.Add(objDataReader("OP_MAQUINA").ToString())
+                ls.SubItems.Add(If(objDataReader("OP_DATA_INICIO") IsNot DBNull.Value, Convert.ToDateTime(objDataReader("OP_DATA_INICIO")).ToString("dd/MM/yyyy HH:mm"), Nothing))
+                ls.SubItems.Add(If(objDataReader("OP_DATA_FIM") IsNot DBNull.Value, Convert.ToDateTime(objDataReader("OP_DATA_FIM")).ToString("dd/MM/yyyy HH:mm"), Nothing))
+                ls.SubItems.Add(objDataReader("OP_HORAS_PREV").ToString())
                 ls.SubItems.Add(objDataReader("OP_QUANTIDADE").ToString())
                 ls.SubItems.Add(objDataReader("OP_QUANTIDADE_FINAL").ToString())
-                ls.SubItems.Add(objDataReader("OP_HORAS_PREV").ToString())
-                ls.SubItems.Add(deferenca_horas)
+                ls.SubItems.Add(If(objDataReader("INICIO") IsNot DBNull.Value, Convert.ToDateTime(objDataReader("INICIO")).ToString("dd/MM/yyyy HH:mm"), Nothing))
+                ls.SubItems.Add(If(objDataReader("FIM") IsNot DBNull.Value, Convert.ToDateTime(objDataReader("FIM")).ToString("dd/MM/yyyy HH:mm"), Nothing))
+                ls.SubItems.Add(If(objDataReader("TEMPO") IsNot DBNull.Value, Convert.ToDecimal(objDataReader("TEMPO")), Nothing))
                 Lista_OS.Items.Add(ls)
-            End While
-            objDataReader.Close()
-
-            comandoSQL.CommandText = "SELECT OS_ID, OS_FERRAMENTA, OS_POSICAO, OP_ID, OP_NOME_OP, OP_DATA_INICIO, OP_DATA_FIM, PARADA_MOTIVO,PARADA_DATA_INICIO,PARADA_DATA_FIM, "
-            comandoSQL.CommandText &= "Case WHEN PARADA_MOTIVO = 'FIM DE TURNO' OR PARADA_MOTIVO = 'REFEIÇÃO' OR PARADA_MOTIVO = 'TROCA DE PRIORIDADE' OR PARADA_MOTIVO = 'FALTA DE ENERGIA' "
-            comandoSQL.CommandText &= "THEN 0 ELSE COALESCE(SUM(DATEDIFF(MINUTE, PARADA_DATA_INICIO, COALESCE(PARADA_DATA_FIM, GETDATE()))), 0) / 60.0 END AS HORAS_PARADA "
-            comandoSQL.CommandText &= "From TAB_OS_RELATORIO INNER JOIN TAB_OS_OPERACAO On OS_ID = OP_ID_OS LEFT JOIN TAB_OP_PARADAS On OP_ID = PARADA_ID_OP "
-            comandoSQL.CommandText &= "WHERE OP_DATA_INICIO Is Not NULL AND EXISTS (SELECT 1 FROM TAB_OP_PARADAS WHERE PARADA_ID_OP = OP_ID AND PARADA_DATA_FIM IS NULL) And ('" & txt_fer.Text & "' = '' OR OS_FERRAMENTA LIKE '%" & txt_fer.Text & "%' OR OS_POSICAO LIKE '%" & txt_fer.Text & "%') AND ('" & txt_os.Text & "' = '' OR OS_ID = '" & txt_os.Text & "') "
-            comandoSQL.CommandText &= "AND ('" & txt_data.Text & "' = '  /  /' OR CONVERT(DATE, OP_DATA_INICIO, 103) >= CONVERT(DATE, '" & txt_data.Text & "', 103)) AND ('" & txt_data_fim.Text & "' = '  /  /' OR CONVERT(DATE, OP_DATA_FIM, 103) <= CONVERT(DATE, '" & txt_data_fim.Text & "', 103)) "
-            comandoSQL.CommandText &= "AND ('" & txt_op.Text & "' = '' OR OP_NOME_OP = '" & txt_op.Text & "')  AND ('" & cbo_maq.Text & "' = '' OR OP_MAQUINA = '" & cbo_maq.Text & "') "
-            comandoSQL.CommandText &= "GROUP BY OS_ID, OS_FERRAMENTA, OP_ID, OP_NOME_OP, OP_DATA_INICIO, OP_DATA_FIM, OS_POSICAO, PARADA_MOTIVO,PARADA_DATA_INICIO,PARADA_DATA_FIM ORDER BY OP_ID; "
-            objDataReader = comandoSQL.ExecuteReader
-
-            Lista_Parada.Clear()
-            Lista_Parada.View = View.Details
-            Lista_Parada.Columns.Add("ORDEM", 60, HorizontalAlignment.Center)
-            Lista_Parada.Columns.Add("FERRAMENTA", 60, HorizontalAlignment.Center)
-            Lista_Parada.Columns.Add("POSIÇÃO", 60, HorizontalAlignment.Center)
-            Lista_Parada.Columns.Add("OPERAÇÃO", 60, HorizontalAlignment.Center)
-            Lista_Parada.Columns.Add("NOME", 60, HorizontalAlignment.Center)
-            Lista_Parada.Columns.Add("DATA INICIO", 60, HorizontalAlignment.Center)
-            Lista_Parada.Columns.Add("DATA FIM", 60, HorizontalAlignment.Center)
-            Lista_Parada.Columns.Add("MOTIVO PARADA", 60, HorizontalAlignment.Center)
-            Lista_Parada.Columns.Add("INICIO PARADA", 60, HorizontalAlignment.Center)
-            Lista_Parada.Columns.Add("FIM PARADA", 60, HorizontalAlignment.Center)
-            Lista_Parada.Columns.Add("HORAS PARADA", 60, HorizontalAlignment.Center)
-
-            While objDataReader.Read()
-                Dim ls As New ListViewItem(objDataReader("OS_ID").ToString())
-                ls.SubItems.Add(objDataReader("OS_FERRAMENTA").ToString())
-                ls.SubItems.Add(objDataReader("OS_POSICAO").ToString())
-                ls.SubItems.Add(objDataReader("OP_ID").ToString())
-                ls.SubItems.Add(objDataReader("OP_NOME_OP").ToString())
-                ls.SubItems.Add(objDataReader("OP_DATA_INICIO").ToString())
-                ls.SubItems.Add(objDataReader("OP_DATA_FIM").ToString())
-                ls.SubItems.Add(objDataReader("PARADA_MOTIVO").ToString())
-                ls.SubItems.Add(objDataReader("PARADA_DATA_INICIO").ToString())
-                ls.SubItems.Add(objDataReader("PARADA_DATA_FIM").ToString())
-                ls.SubItems.Add(objDataReader("HORAS_PARADA").ToString())
-                Lista_Parada.Items.Add(ls)
             End While
             objDataReader.Close()
             desconectar()
@@ -242,88 +210,52 @@ Public Class Relatorio
         End If
     End Sub
 
+
     Private Sub ExportToExcel()
-        If Lista_OS.Items.Count = 0 AndAlso Lista_Parada.Items.Count = 0 Then
+        If Lista_OS.Items.Count = 0 Then
             MessageBox.Show("Sem dados para exportar", "Informação", MessageBoxButtons.OK, MessageBoxIcon.Information)
             Return
         End If
+
         Enabled = False
         MessageBox.Show("Gerando documento, por favor aguarde...", "Aviso", MessageBoxButtons.OK, MessageBoxIcon.Information)
 
-        Dim excelApp As Excel.Application = Nothing
-        Dim workbook As Excel.Workbook = Nothing
-        Dim worksheetOS As Excel.Worksheet = Nothing
-        Dim worksheetParada As Excel.Worksheet = Nothing
-
         Try
-            excelApp = New Excel.Application()
-            excelApp.Visible = False
-            workbook = excelApp.Workbooks.Add()
+            ' Definir o contexto de licença do EPPlus
+            ExcelPackage.LicenseContext = LicenseContext.NonCommercial
 
-            worksheetParada = workbook.Worksheets.Add()
-            worksheetParada.Name = "Paradas"
+            ' Definir o caminho do arquivo Excel
+            Dim excelPath As String = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments), "Operações " & DateTime.Now.ToString("dd-MM-yyyy HH-mm") & ".xlsx")
 
-            Dim headerIndex As Integer = 1
-            For Each column As ColumnHeader In Lista_Parada.Columns
-                worksheetParada.Cells(1, headerIndex) = column.Text
-                worksheetParada.Cells(1, headerIndex).HorizontalAlignment = Excel.XlHAlign.xlHAlignCenter
-                headerIndex += 1
-            Next
+            ' Criar um novo pacote Excel
+            Using package As New ExcelPackage()
+                ' Adicionar uma nova worksheet
+                Dim worksheet As ExcelWorksheet = package.Workbook.Worksheets.Add("Dados Exportados")
 
-            Dim rowIndex As Integer = 2
-            For Each item As ListViewItem In Lista_Parada.Items
-                Dim columnIndex As Integer = 1
-                For Each subItem As ListViewItem.ListViewSubItem In item.SubItems
-                    worksheetParada.Cells(rowIndex, columnIndex) = subItem.Text
-                    worksheetParada.Cells(rowIndex, columnIndex).HorizontalAlignment = Excel.XlHAlign.xlHAlignCenter
-                    columnIndex += 1
+                ' Adicionar os cabeçalhos das colunas
+                For col As Integer = 0 To Lista_OS.Columns.Count - 1
+                    worksheet.Cells(1, col + 1).Value = Lista_OS.Columns(col).Text
                 Next
-                rowIndex += 1
-            Next
 
-            worksheetParada.Columns.AutoFit()
-
-            worksheetOS = workbook.Worksheets.Add()
-            worksheetOS.Name = "Operações"
-
-            headerIndex = 1
-            For Each column As ColumnHeader In Lista_OS.Columns
-                worksheetOS.Cells(1, headerIndex) = column.Text
-                worksheetOS.Cells(1, headerIndex).HorizontalAlignment = Excel.XlHAlign.xlHAlignCenter
-                headerIndex += 1
-            Next
-
-            rowIndex = 2
-            For Each item As ListViewItem In Lista_OS.Items
-                Dim columnIndex As Integer = 1
-                For Each subItem As ListViewItem.ListViewSubItem In item.SubItems
-                    worksheetOS.Cells(rowIndex, columnIndex) = subItem.Text
-                    worksheetOS.Cells(rowIndex, columnIndex).HorizontalAlignment = Excel.XlHAlign.xlHAlignCenter
-                    columnIndex += 1
+                ' Adicionar os dados das linhas
+                For row As Integer = 0 To Lista_OS.Items.Count - 1
+                    For col As Integer = 0 To Lista_OS.Columns.Count - 1
+                        worksheet.Cells(row + 2, col + 1).Value = Lista_OS.Items(row).SubItems(col).Text
+                    Next
                 Next
-                rowIndex += 1
-            Next
 
-            worksheetOS.Columns.AutoFit()
+                ' Salvar o arquivo Excel
+                Dim fileInfo As New FileInfo(excelPath)
+                package.SaveAs(fileInfo)
+            End Using
 
-            Dim filePath As String = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments), "Operações_" & DateTime.Now.ToString("dd-MM-yyyy HH-mm") & ".xlsx")
-            workbook.SaveAs(filePath)
             MessageBox.Show("Documento gerado na pasta Documentos", "Documento", MessageBoxButtons.OK, MessageBoxIcon.Information)
         Catch ex As Exception
             MessageBox.Show("Ocorreu um erro: " & ex.Message, "Erro", MessageBoxButtons.OK, MessageBoxIcon.Error)
         Finally
-            If Not worksheetOS Is Nothing Then Marshal.ReleaseComObject(worksheetOS)
-            If Not worksheetParada Is Nothing Then Marshal.ReleaseComObject(worksheetParada)
-            If Not workbook Is Nothing Then workbook.Close(SaveChanges:=True)
-            If Not excelApp Is Nothing Then
-                excelApp.Quit()
-                Marshal.ReleaseComObject(excelApp)
-            End If
+            Enabled = True
         End Try
-        Enabled = True
     End Sub
-
-
 
     Private Sub txt_fer_TextChanged(sender As Object, e As EventArgs) Handles txt_fer.TextChanged
         Consulta()
